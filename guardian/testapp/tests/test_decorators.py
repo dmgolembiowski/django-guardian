@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+import django
 from django.conf import global_settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, AnonymousUser
@@ -15,7 +15,7 @@ from django.test import TestCase
 
 from guardian.compat import get_user_model_path
 from guardian.compat import get_user_permission_full_codename
-import mock
+from unittest import mock
 from guardian.decorators import permission_required, permission_required_or_403, permission_required_or_404
 from guardian.exceptions import GuardianError
 from guardian.exceptions import WrongAppError
@@ -32,7 +32,7 @@ user_model_path = get_user_model_path()
 class PermissionRequiredTest(TestDataMixin, TestCase):
 
     def setUp(self):
-        super(PermissionRequiredTest, self).setUp()
+        super().setUp()
         self.anon = AnonymousUser()
         self.user = User.objects.get_or_create(username='jack')[0]
         self.group = Group.objects.get_or_create(name='jackGroup')[0]
@@ -384,8 +384,12 @@ class PermissionRequiredTest(TestDataMixin, TestCase):
             pass
         response = dummy_view(request, project_name='foobar')
         self.assertTrue(isinstance(response, HttpResponseRedirect))
-        self.assertTrue(response._headers['location'][1].startswith(
-            '/foobar/'))
+        if django.VERSION >= (3, 2):
+            self.assertTrue(response.headers['location'].startswith(
+                '/foobar/'))
+        else:
+            self.assertTrue(response._headers['location'][1].startswith(
+                '/foobar/'))
 
     @override_settings(LOGIN_URL='django.contrib.auth.views.login')
     def test_redirection_class(self):
@@ -395,3 +399,36 @@ class PermissionRequiredTest(TestDataMixin, TestCase):
         # this should be '/account/login'
         self.assertRedirects(
             response, global_settings.LOGIN_URL + "?next=" + view_url)
+
+    def test_view_method(self):
+        perm = get_user_permission_full_codename('change')
+        joe, created = User.objects.get_or_create(username='joe')
+        assign_perm(perm, self.user, obj=joe)
+
+        request = self._get_request(self.user)
+
+        class DummyClass:
+            @permission_required_or_403(perm, (
+                user_model_path, 'username', 'username'))
+            def dummy_view(self, request, username):
+                return HttpResponse('dummy_view')
+
+        response = DummyClass().dummy_view(request, username='joe')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'dummy_view')
+
+    def test_no_request_argument(self):
+        perm = get_user_permission_full_codename('change')
+        joe, created = User.objects.get_or_create(username='joe')
+        assign_perm(perm, self.user, obj=joe)
+
+        request = self._get_request(self.user)
+
+        @permission_required_or_403(perm, (
+            user_model_path, 'username', 'username'))
+        def dummy_view(request, username):
+            return HttpResponse('dummy_view')
+
+        with self.assertRaises(TypeError, msg="dummy_view() missing 1 required positional argument: 'request'"):
+            # A nice error message is thrown when request is not included
+            dummy_view(username='joe')
