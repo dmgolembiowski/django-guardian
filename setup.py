@@ -2,8 +2,8 @@ import os
 from setuptools import setup
 from extras import RunFlakesCommand
 
-
 version = '2.3.0'
+
 
 readme_file = os.path.join(os.path.dirname(__file__), 'README.rst')
 with open(readme_file) as f:
@@ -33,7 +33,6 @@ setup(
     classifiers=['Development Status :: 5 - Production/Stable',
                  'Environment :: Web Environment',
                  'Framework :: Django',
-                 'Framework :: Django :: 2.2',
                  'Framework :: Django :: 3.0',
                  'Framework :: Django :: 3.1',
                  'Intended Audience :: Developers',
